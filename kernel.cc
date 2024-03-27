@@ -64,12 +64,19 @@ void kernel_start(const char* command) {
          it.va() < MEMSIZE_PHYSICAL;
          it += PAGESIZE) {
         if (it.va() != 0) {
+
+            /*Users need to have access to CGA console (memory for the screen)
+             and the applications memory
+            */
             if(it.va() == CONSOLE_ADDR || it.va() >= PROC_START_ADDR){
+                //PTE_P = present(Pages that are mapped) | PTE_W = writeable | PTE_U = user(User accessible)
                 it.map(it.va(), PTE_P | PTE_W | PTE_U);
             }
+            /*
+            Users should not have access to other things
+            */
             else{
                 it.map(it.va(), PTE_P | PTE_W);
-
             }
         } else {
             // nullptr is inaccessible even to the kernel
