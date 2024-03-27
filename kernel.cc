@@ -64,7 +64,13 @@ void kernel_start(const char* command) {
          it.va() < MEMSIZE_PHYSICAL;
          it += PAGESIZE) {
         if (it.va() != 0) {
-            it.map(it.va(), PTE_P | PTE_W | PTE_U);
+            if(it.va() == CONSOLE_ADDR || it.va() >= PROC_START_ADDR){
+                it.map(it.va(), PTE_P | PTE_W | PTE_U);
+            }
+            else{
+                it.map(it.va(), PTE_P | PTE_W);
+
+            }
         } else {
             // nullptr is inaccessible even to the kernel
             it.map(it.va(), 0);
