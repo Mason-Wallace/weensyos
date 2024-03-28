@@ -335,7 +335,19 @@ uintptr_t syscall(regstate* regs) {
 //    should implement the specification for `sys_page_alloc`
 //    in `u-lib.hh` (but in the handout code, it does not).
 
+// Pasted from u_lib.hh
+// sys_page_alloc(addr)
+//    Allocate a page of memory at address `addr`. The newly-allocated
+//    memory is initialized to 0. Any memory previously located at `addr`
+//    should be freed. Returns 0 on success and -1 on failure (out of
+//    memory or invalid argument).
+//
+//    `Addr` should be page-aligned (i.e., a multiple of PAGESIZE == 4096),
+//    >= PROC_START_ADDR, and < MEMSIZE_VIRTUAL.
 int syscall_page_alloc(uintptr_t addr) {
+    assert(addr >= PROC_START_ADDR);
+    assert(addr < MEMSIZE_VIRTUAL);
+    assert(addr % PAGESIZE == 0);
     assert(physpages[addr / PAGESIZE].refcount == 0);
     ++physpages[addr / PAGESIZE].refcount;
     memset((void*) addr, 0, PAGESIZE);
