@@ -207,6 +207,8 @@ void process_setup(pid_t pid, const char* program_name) {
     assert(physpages[stack_addr / PAGESIZE].refcount == 0);
     ++physpages[stack_addr / PAGESIZE].refcount;
     ptable[pid].regs.reg_rsp = stack_addr + PAGESIZE;
+    // Mapping the permissions for the stack_addr part of the process to its page table
+    vmiter(ptable[pid].pagetable, stack_addr).map(stack_addr,PTE_P | PTE_W | PTE_U);
 
     // mark process as runnable
     ptable[pid].state = P_RUNNABLE;
@@ -362,6 +364,9 @@ int syscall_page_alloc(uintptr_t addr) {
     assert(addr % PAGESIZE == 0);
     assert(physpages[addr / PAGESIZE].refcount == 0);
     ++physpages[addr / PAGESIZE].refcount;
+
+    // Mapped the permissions to the virtual addresses using vmiter
+    vmiter(current->pagetable, addr).map(addr, PTE_P | PTE_W | PTE_U);
     memset((void*) addr, 0, PAGESIZE);
     return 0;
 }
