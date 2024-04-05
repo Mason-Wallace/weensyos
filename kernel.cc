@@ -60,27 +60,24 @@ void kernel_start(const char* command) {
     console_clear();
 
     // (re-)initialize kernel page table
-    for (vmiter it(kernel_pagetable);
-         it.va() < MEMSIZE_PHYSICAL;
-         it += PAGESIZE) {
-        if (it.va() != 0) {
-
+    for (vmiter kit(kernel_pagetable); kit.va() < MEMSIZE_PHYSICAL; kit += PAGESIZE) {
+        if (kit.va() != 0) {
             /*Users need to have access to CGA console (memory for the screen)
              and the applications memory
             */
-            if(it.va() == CONSOLE_ADDR || it.va() >= PROC_START_ADDR){
+            if(kit.va() == CONSOLE_ADDR || kit.va() >= PROC_START_ADDR){
                 //PTE_P = present(Pages that are mapped) | PTE_W = writeable | PTE_U = user(User accessible)
-                it.map(it.va(), PTE_P | PTE_W | PTE_U);
+                kit.map(kit.va(), PTE_P | PTE_W | PTE_U);
             }
             /*
             Users should not have access to other things
             */
             else{
-                it.map(it.va(), PTE_P | PTE_W);
+                kit.map(kit.va(), PTE_P | PTE_W);
             }
         } else {
             // nullptr is inaccessible even to the kernel
-            it.map(it.va(), 0);
+            kit.map(kit.va(), 0);
         }
     }
 
@@ -160,23 +157,38 @@ void process_setup(pid_t pid, const char* program_name) {
     init_process(&ptable[pid], 0);
 
     // initialize process page table
-    ptable[pid].pagetable = kernel_pagetable;
+    // Allocate and initialize a new empty level-4 page table(kernel.hh)
+    ptable[pid].pagetable = kalloc_pagetable();
+
+    // pit = process iteration | kit = kernel iteration
+    // Access virtual memory for this processes page table 
+    vmiter pit(ptable[pid].pagetable);
+
+    // Mapping the first 4 rows from the kernel page table to the process page table
+    // Map up to everything less than the Process start address(PROC_START_ADDR)
+    for(vmiter kit(kernel_pagetable); kit.va() < PROC_START_ADDR; kit+= PAGESIZE){
+        if(kit.va()!=0){
+            pit.map(kit.va(), kit.perm());
+        }
+        pit += PAGESIZE; // Need to move to the next process page to stay with the kit page
+    }
 
     // obtain reference to the program image
     program_image pgm(program_name);
 
+
     // allocate and map global memory required by loadable segments
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
-        for (uintptr_t a = round_down(seg.va(), PAGESIZE);
-             a < seg.va() + seg.size();
-             a += PAGESIZE) {
+        for (uintptr_t a = round_down(seg.va(), PAGESIZE); a < seg.va() + seg.size(); a += PAGESIZE) {
             // `a` is the process virtual address for the next code or data page
             // (The handout code requires that the corresponding physical
             // address is currently free.)
             assert(physpages[a / PAGESIZE].refcount == 0);
             ++physpages[a / PAGESIZE].refcount;
+            // Mapping the correct permissions to the next virtual address being written in this process
+            vmiter(ptable[pid].pagetable, a).map(a,PTE_P | PTE_W | PTE_U);
+             }
         }
-    }
 
     // initialize data in loadable segments
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
