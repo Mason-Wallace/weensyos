@@ -184,9 +184,18 @@ void process_setup(pid_t pid, const char* program_name) {
             // (The handout code requires that the corresponding physical
             // address is currently free.)
             assert(physpages[a / PAGESIZE].refcount == 0);
-            ++physpages[a / PAGESIZE].refcount;
+            // ++physpages[a / PAGESIZE].refcount;
             // Mapping the correct permissions to the next virtual address being written in this process
-            vmiter(ptable[pid].pagetable, a).map(a,PTE_P | PTE_W | PTE_U);
+            // vmiter(ptable[pid].pagetable, a).map(a,PTE_P | PTE_W | PTE_U);
+
+            // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
+            void* pa = kalloc(PAGESIZE);
+            // Taking care of the virtual address part
+                if(pa){
+                    vmiter(ptable[pid].pagetable,a).map(pa, PTE_P | PTE_W | PTE_U);
+                    // Resetting physical address
+                    memset(pa, 0, PAGESIZE);
+                }
              }
         }
 
