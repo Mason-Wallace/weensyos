@@ -183,11 +183,6 @@ void process_setup(pid_t pid, const char* program_name) {
             // `a` is the process virtual address for the next code or data page
             // (The handout code requires that the corresponding physical
             // address is currently free.)
-            assert(physpages[a / PAGESIZE].refcount == 0);
-            // ++physpages[a / PAGESIZE].refcount;
-            // Mapping the correct permissions to the next virtual address being written in this process
-            // vmiter(ptable[pid].pagetable, a).map(a,PTE_P | PTE_W | PTE_U);
-
             // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
             void* pa = kalloc(PAGESIZE);
             // Taking care of the virtual address part
@@ -198,6 +193,8 @@ void process_setup(pid_t pid, const char* program_name) {
                 }
              }
         }
+    // Use the pagetable for the process
+    set_pagetable(ptable[pid].pagetable);
 
     // initialize data in loadable segments
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
@@ -213,11 +210,18 @@ void process_setup(pid_t pid, const char* program_name) {
     uintptr_t stack_addr = PROC_START_ADDR + PROC_SIZE * pid - PAGESIZE;
     // The handout code requires that the corresponding physical address
     // is currently free.
-    assert(physpages[stack_addr / PAGESIZE].refcount == 0);
-    ++physpages[stack_addr / PAGESIZE].refcount;
+    // assert(physpages[stack_addr / PAGESIZE].refcount == 0);
+
+        // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
+        void* pa = kalloc(PAGESIZE);
+        // Taking care of the virtual address part
+        if(pa){
+            // Mapping the permissions for the stack_addr part of the process to its page table
+                vmiter(ptable[pid].pagetable, stack_addr).map(pa, PTE_P | PTE_W | PTE_U);
+            // Resetting physical address
+            memset(pa, 0, PAGESIZE);
+        }
     ptable[pid].regs.reg_rsp = stack_addr + PAGESIZE;
-    // Mapping the permissions for the stack_addr part of the process to its page table
-    vmiter(ptable[pid].pagetable, stack_addr).map(stack_addr,PTE_P | PTE_W | PTE_U);
 
     // mark process as runnable
     ptable[pid].state = P_RUNNABLE;
@@ -371,13 +375,23 @@ int syscall_page_alloc(uintptr_t addr) {
     assert(addr >= PROC_START_ADDR);
     assert(addr < MEMSIZE_VIRTUAL);
     assert(addr % PAGESIZE == 0);
-    assert(physpages[addr / PAGESIZE].refcount == 0);
-    ++physpages[addr / PAGESIZE].refcount;
 
+    // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
+    void* pa = kalloc(PAGESIZE);
+
+    // Taking care of the virtual address part
+    if(pa){
+        vmiter(current->pagetable, addr).map(pa, PTE_P | PTE_W | PTE_U);
+        // Resetting physical address
+        memset(pa, 0, PAGESIZE);
+        return 0;
+        }
+        else{
+            return -1;
+        }
     // Mapped the permissions to the virtual addresses using vmiter
-    vmiter(current->pagetable, addr).map(addr, PTE_P | PTE_W | PTE_U);
-    memset((void*) addr, 0, PAGESIZE);
-    return 0;
+    // memset((void*) addr, 0, PAGESIZE);
+    // return 0;
 }
 
 
