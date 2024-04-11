@@ -148,7 +148,7 @@ void kfree(void* kptr) {
 }
 
 
-// process_setup(pid, program_name)
+// process_setup(pid, program_nam
 //    Load application program `program_name` as process number `pid`.
 //    This loads the application's code and data into memory, sets its
 //    %rip and %rsp, gives it a stack page, and marks it as runnable.
@@ -207,7 +207,7 @@ void process_setup(pid_t pid, const char* program_name) {
 
     // allocate and map stack segment
     // Compute process virtual address for stack page
-    uintptr_t stack_addr = PROC_START_ADDR + PROC_SIZE * pid - PAGESIZE;
+    uintptr_t stack_addr = MEMSIZE_VIRTUAL - PAGESIZE;
     // The handout code requires that the corresponding physical address
     // is currently free.
         // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
