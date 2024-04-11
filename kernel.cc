@@ -210,8 +210,6 @@ void process_setup(pid_t pid, const char* program_name) {
     uintptr_t stack_addr = PROC_START_ADDR + PROC_SIZE * pid - PAGESIZE;
     // The handout code requires that the corresponding physical address
     // is currently free.
-    // assert(physpages[stack_addr / PAGESIZE].refcount == 0);
-
         // Using kalloc to place the page in the next physical memory spot pa = Physical Memory Address
         void* pa = kalloc(PAGESIZE);
         // Taking care of the virtual address part
@@ -389,9 +387,6 @@ int syscall_page_alloc(uintptr_t addr) {
         else{
             return -1;
         }
-    // Mapped the permissions to the virtual addresses using vmiter
-    // memset((void*) addr, 0, PAGESIZE);
-    // return 0;
 }
 
 
