@@ -311,6 +311,7 @@ void exception(regstate* regs) {
 //    Note that hardware interrupts are disabled when the kernel is running.
 
 int syscall_page_alloc(uintptr_t addr);
+pid_t syscall_fork();
 
 uintptr_t syscall(regstate* regs) {
     // Copy the saved registers into the `current` process descriptor.
@@ -345,6 +346,9 @@ uintptr_t syscall(regstate* regs) {
 
     case SYSCALL_PAGE_ALLOC:
         return syscall_page_alloc(current->regs.reg_rdi);
+
+    case SYSCALL_FORK: // For if fork is called
+    return syscall_fork();
 
     default:
         panic("Unexpected system call %ld!\n", regs->reg_rax);
@@ -387,6 +391,47 @@ int syscall_page_alloc(uintptr_t addr) {
         else{
             return -1;
         }
+}
+
+// This function is called when the f key is pressed and the fork() system is called.
+pid_t syscall_fork() {
+    // initialize the process id (pid) for the child Make -1 so -1 will be returned 
+    //if no free slot for the child exists
+    pid_t childPID = -1;
+
+    // search ptable array for free process slot (avoid slot 0) for child
+    for(int i = 1; i < NPROC; i++){
+        if(ptable[i].state == P_FREE){
+            // if free slot in process table array give child pid that pid value
+            childPID = i;
+            // make child process runnable and make pagetable for it
+            ptable[childPID].state = P_RUNNABLE;
+            ptable[childPID].pagetable = kalloc_pagetable();
+            break;
+        }
+    }
+    
+    // Using vmiter to iterate over the parents page table (pit = parent iteration)
+    for(vmiter pit(current->pagetable); pit.va() < MEMSIZE_VIRTUAL; pit+= PAGESIZE){
+        if(pit.va() != 0){
+            if(pit.va() < PROC_START_ADDR){
+                /* Addresses below PROC_START_ADDR(First 4 rows) parent and child page tables have
+                identical mappings. Take child's pagetable and map the kernel-accessible 
+                pointer and permissions of parent to this child */
+                vmiter(ptable[childPID].pagetable, pit.va()).map(pit.kptr(), pit.perm());
+            }
+            else if(pit.user()){ // 5th row and beyond with user access (application_writable)
+                void* pa = kalloc(PAGESIZE); // allocate a new physical page
+                if(pa){
+                    memcpy(pa, (void*)pit.kptr(), PAGESIZE); // copy data from parent's page to physical page
+                    vmiter(ptable[childPID].pagetable, pit.va()).map(pa, pit.perm()); // Map physical address and permissions from the parent to the child
+                }
+            }
+        }
+    }
+ptable[childPID].regs = current->regs; // The child process's registers are initialized as a copy of the parent process's registers
+ptable[childPID].regs.reg_rax = 0; // Except for reg_rax
+return childPID;
 }
 
 
