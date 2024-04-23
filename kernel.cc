@@ -143,11 +143,28 @@ void* kalloc(size_t sz) {
 //    If `kptr == nullptr` does nothing.
 
 void kfree(void* kptr) {
-    (void) kptr;
-    assert(false /* your code here */);
+    if(kptr == nullptr){
+        return;
+    }
+    if(physpages[(long unsigned int)kptr / PAGESIZE].refcount != 0){
+        physpages[(long unsigned int)kptr / PAGESIZE].refcount -= 1;
+    }
 }
 
+// walks over the page table pages in a page table, returning them in depth-first order.
+// This is mainly useful when freeing a page table. k-vmiter.hh
+void deletePagetable(x86_64_pagetable* pt){
+    for (vmiter it(pt); it.va()< MEMSIZE_VIRTUAL; it += PAGESIZE){
+        if(it.user() && (it.pa() != CONSOLE_ADDR)){
+            kfree((void*)(it.pa()));
+        }
+    }
 
+    for(ptiter it(pt); !it.done(); it.next()){
+        kfree(it.kptr());
+    }
+    kfree(pt);
+}
 // process_setup(pid, program_nam
 //    Load application program `program_name` as process number `pid`.
 //    This loads the application's code and data into memory, sets its
@@ -312,6 +329,7 @@ void exception(regstate* regs) {
 
 int syscall_page_alloc(uintptr_t addr);
 pid_t syscall_fork();
+void syscall_exit();
 
 uintptr_t syscall(regstate* regs) {
     // Copy the saved registers into the `current` process descriptor.
@@ -349,6 +367,10 @@ uintptr_t syscall(regstate* regs) {
 
     case SYSCALL_FORK: // For if fork is called
     return syscall_fork();
+
+    case SYSCALL_EXIT: // For if exit is called
+    syscall_exit();
+    schedule(); // Does not return
 
     default:
         panic("Unexpected system call %ld!\n", regs->reg_rax);
@@ -434,11 +456,16 @@ ptable[childPID].regs.reg_rax = 0; // Except for reg_rax
 return childPID;
 }
 
+// Taking current process deleting its page table and then freeing its state
+void syscall_exit(){
+    pid_t current_pid = current->pid;
+    deletePagetable(ptable[current_pid].pagetable);
+    ptable[current_pid].state = P_FREE;
+}
 
 // schedule
 //    Pick the next process to run and then run it.
 //    If there are no runnable processes, spins forever.
-
 void schedule() {
     pid_t pid = current->pid;
     for (unsigned spins = 1; true; ++spins) {
